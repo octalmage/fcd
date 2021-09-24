@@ -140,6 +140,8 @@ export async function collectWasm(mgr: EntityManager, txEntities: TxEntity[]) {
         logger.info(`collectWasm: new contract ${contract.contractAddress}`)
         return mgr.save(WasmContractEntity, contract)
       }
+    }).catch((err) => {
+      logger.info(`collectWasm: ignoring error ${err.message}`)
     })
   })
 }
