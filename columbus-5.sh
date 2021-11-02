@@ -25,7 +25,7 @@ emacs /etc/postgresql/12/main/postgresql.conf
 
 pg_ctlcluster 12 main start
 
-# Check the data directory. Should show /mnt/fcd-data
+# Check the data directory. Should show your new postgresql data dir.
 echo "SHOW data_directory;" | sudo -u postgres psql
 
 # Create the FCD database
@@ -45,7 +45,6 @@ su - <YOUR FCD USER>
 
 git clone https://github.com/etfinder/fcd.git
 cd fcd
-# For col 4 and columbus 5 we're using e30e07d
 git checkout fd881fe
 npm install
 
