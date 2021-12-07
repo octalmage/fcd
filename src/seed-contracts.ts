@@ -37,10 +37,18 @@ function sleep(ms) {
 //     }
 //   }
 // }
-async function fetchAllContracts(): Promise<any[]> {
-  const baseURL = 'https://fcd.terra.dev/v1/wasm/contracts'
-  const contracts: any[] = []
-  let nextId = null
+
+// Testnet
+const FCD_URL = 'https://bombay-fcd.terra.dev'
+// Mainnet
+//const FCD_URL='https://fcd.terra.dev'
+
+const POSITION_FILE = 'position.save'
+async function fetchAllContracts(startOffset?: string): Promise<void> {
+  const baseURL = FCD_URL + '/v1/wasm/contracts'
+  const manager = getManager()
+  let nextId = startOffset ?? null
+
   do {
     let url = baseURL
     if (nextId !== null) {
@@ -48,19 +56,20 @@ async function fetchAllContracts(): Promise<any[]> {
     }
     console.log('Fetching', url)
     const r = await client.get(url)
-    const c: any[] = r.data.contracts
-    contracts.push(...c)
+    const contracts: any[] = r.data.contracts
+
+    for (let i = 0; i < contracts.length; i++) {
+      const c = contracts[i]
+      await saveContract(manager, c)
+    }
+
     nextId = r.data.next
+    // Write the next offset to the a file
+    if (nextId) {
+      fs.writeFileSync(POSITION_FILE, `${nextId}`)
+    }
     await sleep(SLEEP_MS)
   } while (nextId)
-
-  return contracts
-}
-
-async function fetchTxHeight(hash: string): Promise<number> {
-  const url = `https://fcd.terra.dev/v1/tx/${hash}`
-  const r = await client.get(url)
-  return +r.data.height
 }
 
 async function saveContract(mgr: EntityManager, contract) {
@@ -100,36 +109,15 @@ async function saveContract(mgr: EntityManager, contract) {
       migrateMsg: contract.migrate_msg
     }
     await mgr.save(WasmContractEntity, newContract)
-    console.log(`Creating contract ${code.code_id}`)
+    console.log(`Creating contract ${contract.contract_address}`)
     console.log('Saved contract')
   }
 }
 
-const END_DATE = Date.parse('Thu Sep 30 2021 07:00:00 UTC')
-const saveFile = 'contracts.json'
 const start = async () => {
   await initORM()
-  let contracts
-
-  if (fs.existsSync(saveFile)) {
-    console.log('Reading contracts from local file')
-    const data = fs.readFileSync(saveFile, 'utf8')
-    contracts = JSON.parse(data)
-  } else {
-    console.log('Fetching contracts from FCD')
-    contracts = await fetchAllContracts()
-    fs.writeFileSync(saveFile, JSON.stringify(contracts, null, 2))
-  }
-  const manager = getManager()
-
-  for (let i = 0; i < contracts.length; i++) {
-    const c = contracts[i]
-    // If this contract was created before columbus 5 add it to our db.
-    const timeStamp = Date.parse(c.timestamp)
-    if (timeStamp < END_DATE) {
-      await saveContract(manager, c)
-    }
-  }
+  const startOffset = process.env.START_OFFSET
+  await fetchAllContracts(startOffset)
 }
 
 start().catch(console.log)
